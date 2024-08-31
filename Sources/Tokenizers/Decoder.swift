@@ -23,7 +23,7 @@ extension Decoder {
 
 enum DecoderType: String {
     case Sequence
-//    case WordPiece
+    case WordPiece
     case ByteLevel
     case Replace
     case ByteFallback
@@ -41,6 +41,7 @@ struct DecoderFactory {
         let type = DecoderType(rawValue: typeName)
         switch type {
         case .Sequence    : return DecoderSequence(config: config)
+        case .WordPiece   : return WordPieceDecoder(config: config)
         case .ByteLevel   : return ByteLevelDecoder(config: config, addedTokens: addedTokens)
         case .Replace     : return ReplaceDecoder(config: config)
         case .ByteFallback: return ByteFallbackDecoder(config: config)
@@ -64,6 +65,32 @@ class DecoderSequence: Decoder {
         decoders.reduce(tokens) { current, decoder in
             decoder(tokens: current)
         }
+    }
+}
+
+class WordPieceDecoder: Decoder {
+    let prefix: String
+    let cleanup: Bool
+
+    private let re = try! NSRegularExpression(pattern: "\\s(\\.|\\?|\\!|\\,|'|n't|'m|'s|'ve|'re)", options: [])
+
+    required public init(config: Config) {
+        self.prefix = config.prefix!.stringValue!
+        self.cleanup = config.cleanup!.boolValue!
+    }
+
+    func decode(tokens: [String]) -> [String] {
+        let firstToken = cleanup ? cleanupToken(tokens.first!) : tokens.first!
+        return [firstToken] + tokens.dropFirst().map { token in
+            let token = token.hasPrefix(prefix) ? token.replacingCharacters(in: token.range(of: prefix)!, with: "") : " \(token)"
+            return cleanup ? cleanupToken(token) : token
+        }
+    }
+
+    private func cleanupToken(_ token: String) -> String {
+        let range = NSRange(location: 0, length: token.utf16.count)
+        return re.stringByReplacingMatches(in: token, options: [], range: range, withTemplate: "$1")
+            .replacingOccurrences(of: " do not", with: " don't")
     }
 }
 

@@ -7,6 +7,7 @@
 
 import Foundation
 import Hub
+import RegexBuilder
 
 public enum PreTokenizerOption: String {
     case firstSection
@@ -46,6 +47,7 @@ enum PreTokenizerType: String {
     case Whitespace
     case WhitespaceSplit
     case Metaspace
+    case BertPreTokenizer
     // Several more to be supported
     case Unknown = ""
 }
@@ -63,6 +65,7 @@ struct PreTokenizerFactory {
         case .Split: return SplitPreTokenizer(config: config)
         case .Whitespace, .WhitespaceSplit: return WhitespacePreTokenizer(config: config)
         case .Metaspace: return MetaspacePreTokenizer(config: config)
+        case .BertPreTokenizer: return BertPreTokenizer(config: config)
         default: fatalError("Unsupported PreTokenizer type: \(typeName)")
         }
     }
@@ -222,6 +225,16 @@ class SplitPreTokenizer: PreTokenizer {
     func preTokenize(text: String, options: PreTokenizerOptions = [.firstSection]) -> [String] {
         guard let pattern = pattern else { return [text] }
         return pattern.split(text, invert: invert)
+    }
+}
+
+class BertPreTokenizer: PreTokenizer {
+    let re = Regex { #/[^\s\p{P}\u{21}-\u{2f}\u{3a}-\u{40}\u{5b}-\u{60}\u{7b}-\u{7e}]+|[\p{P}\u{21}-\u{2f}\u{3a}-\u{40}\u{5b}-\u{60}\u{7b}-\u{7e}]/# }
+
+    required init(config: Config) {}
+
+    func preTokenize(text: String, options: PreTokenizerOptions = [.firstSection]) -> [String] {
+        text.matches(of: re).map({ String($0.output) })
     }
 }
 
